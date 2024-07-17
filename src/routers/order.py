@@ -6,6 +6,8 @@ from src.models.order import Order
 from src.models.product import Product
 from src.models.user import User
 from src.models.cart import Cart,CartItem
+from src.schemas.delivery import DeliveryAll
+from src.models.delivery import Delivery
 import uuid
 from datetime import datetime
 from src.utils.order_confirmation_email import send_order_confirmation_email
@@ -23,7 +25,7 @@ db = Sessionlocal()
 #---------------------------create orders--------------------------------
 
 @Orders.post("/create_order", response_model=OrderAll)
-def create_order(order: OrderAll):
+def create_order(order: OrderAll,delivery : DeliveryAll):
     
     product = db.query(Product).filter(Product.id == order.product_id).first()
     
@@ -68,6 +70,17 @@ def create_order(order: OrderAll):
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
+    new_delivery = Delivery(
+        id=str(uuid.uuid4()),
+        order_id=new_order.id,
+        delivery_boy_id=delivery.delivery_boy_id,
+        delivery_status="pending"
+    )
+    
+    db.add(new_delivery)
+    new_delivery.delivery_status = "Done"
+    db.commit()     
+
     send_order_confirmation_email(user.email, new_order)
     
     new_order.status = "done"
