@@ -10,6 +10,7 @@ class Product(Base):
     id = Column(String(100),primary_key=True,default=str(uuid.uuid4()))
     product_name = Column(String(500),nullable=False)
     price = Column(Integer,nullable=False)
+    discount_price = Column(Integer, nullable=True)
     quantity = Column(Integer,nullable=False)
     user_id = Column(String(100), ForeignKey('UserInfo.id'), nullable=True)
     hotel_id = Column(String(100), ForeignKey('HotelInfo.id'), nullable=False)

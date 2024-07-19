@@ -280,3 +280,20 @@ def get_orders_by_date(start_date: datetime ):
         raise HTTPException(status_code=404, detail="No orders found in the specified date range")
     
     return db_order
+
+
+#-----------------------orders_by_delivery_boy--------------------- 
+
+
+@Orders.get("/orders_by_delivery_boy", response_model=list[OrderAll])
+def get_orders_by_delivery_boy(delivery_boy_id: str):
+    deliveries = db.query(Delivery).filter(Delivery.delivery_boy_id == delivery_boy_id, Delivery.is_active == True, Delivery.is_deleted == False).all()
+    
+    if not deliveries:
+        raise HTTPException(status_code=404, detail="No deliveries found for this delivery boy")
+    
+    order_ids = [delivery.order_id for delivery in deliveries]
+
+    orders = db.query(Order).filter(Order.id.in_(order_ids), Order.is_active == True, Order.is_deleted == False).all()
+    
+    return orders
