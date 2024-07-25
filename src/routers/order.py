@@ -49,6 +49,13 @@ def create_order(order: OrderAll,delivery : DeliveryAll):
         raise HTTPException(status_code=404, detail="CartItem not found")
 
     total_amount = sum(item.total_price for item in cart_items)
+    
+    if total_amount <= 1000:
+        total_amount *= 0.9  # Apply a 10% discount
+    elif total_amount <= 2000:
+        total_amount *= 0.8  # Apply a 20% discount
+    elif total_amount <= 3000:
+        total_amount *= 0.7  # Apply a 30% discount
 
     new_order = Order(
         id=str(uuid.uuid4()),

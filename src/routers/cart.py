@@ -26,7 +26,7 @@ def create_cart( user_id: str):
     db.commit()
     return {"message": "Cart created successfully"}
 
-#--------------------------------------------------------------------------------
+#---------------------add item to cart-------------------------
 
 @carts.post("/add_item_to_cart", response_model=CartAll)
 def add_item_to_cart(cart_id: str, item: CartAll):
@@ -39,6 +39,8 @@ def add_item_to_cart(cart_id: str, item: CartAll):
         raise HTTPException(status_code=404, detail="Product not found")
 
     total_price = item.quantity * db_product.price
+    
+   
 
     db_cart_item = CartItem(
         id = str(uuid.uuid4()),
@@ -50,12 +52,9 @@ def add_item_to_cart(cart_id: str, item: CartAll):
 
     db.add(db_cart_item)
     db.commit()
-    db.refresh(db_cart_item)
 
     db_cart.modified_at = datetime.now()
     db.commit()
-
-    db.refresh(db_cart)
 
     return db_cart_item
 
