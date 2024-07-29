@@ -11,6 +11,8 @@ from src.models.delivery import Delivery
 import uuid
 from datetime import datetime
 from src.utils.order_confirmation_email import send_order_confirmation_email
+from logs.log_config import logger
+
 
 
 
@@ -22,30 +24,34 @@ Orders = APIRouter(tags=["Orders"])
 db = Sessionlocal()
 
 
-#---------------------------create orders--------------------------------
+#---------------------create_order----------------------
 
 @Orders.post("/create_order", response_model=OrderAll)
-def create_order(order: OrderAll,delivery : DeliveryAll):
-    
+def create_order(order: OrderAll, delivery: DeliveryAll):
     product = db.query(Product).filter(Product.id == order.product_id).first()
     
     if not product:
+        logger.error(f"Product not found: Product ID {order.product_id}")
         raise HTTPException(status_code=404, detail="Product not found")
     
     if product.user_id != order.user_id:
+        logger.error(f"User did not purchase this product: User ID {order.user_id}, Product ID {order.product_id}")
         raise HTTPException(status_code=403, detail="User did not purchase this product")
 
     cart = db.query(Cart).filter(Cart.id == order.cart_id).first()
     
     if not cart:
+        logger.error(f"Cart not found: Cart ID {order.cart_id}")
         raise HTTPException(status_code=404, detail="Cart not found")
     
     if cart.user_id != order.user_id:
+        logger.error(f"Cart does not belong to this user: User ID {order.user_id}, Cart ID {order.cart_id}")
         raise HTTPException(status_code=403, detail="Cart does not belong to this user")
 
     cart_items = db.query(CartItem).filter(CartItem.cart_id == order.cart_id, CartItem.is_active == True, CartItem.is_deleted == False).all()
 
     if not cart_items:
+        logger.error(f"CartItem not found for Cart ID {order.cart_id}")
         raise HTTPException(status_code=404, detail="CartItem not found")
 
     total_amount = sum(item.total_price for item in cart_items)
@@ -66,15 +72,17 @@ def create_order(order: OrderAll,delivery : DeliveryAll):
         status="pending",
         user_id=order.user_id,
         product_id=order.product_id,
-        cart_id= order.cart_id
+        cart_id=order.cart_id
     )
 
     db.add(new_order)
     db.commit()
+    logger.info(f"Order created: Order ID {new_order.id}")
  
     user = db.query(User).filter(User.id == order.user_id).first()
     
     if not user:
+        logger.error(f"User not found: User ID {order.user_id}")
         raise HTTPException(status_code=404, detail="User not found")
     
     new_delivery = Delivery(
@@ -86,73 +94,81 @@ def create_order(order: OrderAll,delivery : DeliveryAll):
     
     db.add(new_delivery)
     new_delivery.delivery_status = "Done"
-    db.commit()     
+    db.commit()
+    logger.info(f"Delivery created and marked as done: Delivery ID {new_delivery.id}")
 
     send_order_confirmation_email(user.email, new_order)
     
     new_order.status = "done"
     db.commit()
-    
+    logger.info(f"Order status updated to done: Order ID {new_order.id}")
+
     return new_order
 
+#-------------------------get_order_by_id----------------------------
 
-#-------------------------get order by id----------------------------
-
-
-@Orders.get("/get_order_by_id",response_model=OrderAll)
-def get_order_by_id(order_id : str):
-    db_order = db.query(Order).filter(Order.id == order_id,Order.is_active == True,Order.is_deleted == False).first()
+@Orders.get("/get_order_by_id", response_model=OrderAll)
+def get_order_by_id(order_id: str):
+    db_order = db.query(Order).filter(Order.id == order_id, Order.is_active == True, Order.is_deleted == False).first()
     
     if db_order is None:
-        raise  HTTPException(status_code=404,detail="order not found")
+        logger.error(f"Order not found: Order ID {order_id}")
+        raise HTTPException(status_code=404, detail="Order not found")
     
+    logger.info(f"Order retrieved: Order ID {order_id}")
     return db_order
 
-#-------------------------get all order--------------------
+#-------------------------get_all_order--------------------
 
-@Orders.get("/get_all_order",response_model=list[OrderAll])
+@Orders.get("/get_all_order", response_model=list[OrderAll])
 def get_all_order():
-    db_order = db.query(Order).filter(Order.is_active == True,Order.is_deleted == False).all()
+    db_order = db.query(Order).filter(Order.is_active == True, Order.is_deleted == False).all()
     
     if db_order is None:
-        raise  HTTPException(status_code=404,detail="order not found")
+        logger.error("No orders found")
+        raise HTTPException(status_code=404, detail="No orders found")
     
+    logger.info("All active orders retrieved")
     return db_order
 
-#-------------------------update order by put---------------------------
+#-------------------------update_order_by_put---------------------------
 
-@Orders.put("/update_order_by_put",response_model=OrderAll)
-def update_order_by_put(order_id : str,order : OrderAll):
-    db_order = db.query(Order).filter(Order.id == order_id,Order.is_active == True,Order.is_deleted == False).first()
+@Orders.put("/update_order_by_put", response_model=OrderAll)
+def update_order_by_put(order_id: str, order: OrderAll):
+    db_order = db.query(Order).filter(Order.id == order_id, Order.is_active == True, Order.is_deleted == False).first()
     
     if db_order is None:
-        raise  HTTPException(status_code=404,detail="order not found")
+        logger.error(f"Order not found: Order ID {order_id}")
+        raise HTTPException(status_code=404, detail="Order not found")
     
     product = db.query(Product).filter(Product.id == order.product_id).first()
     
     if not product:
+        logger.error(f"Product not found: Product ID {order.product_id}")
         raise HTTPException(status_code=404, detail="Product not found")
     
     if product.user_id != order.user_id:
+        logger.error(f"User did not purchase this product: User ID {order.user_id}, Product ID {order.product_id}")
         raise HTTPException(status_code=403, detail="User did not purchase this product")
     
     cart = db.query(Cart).filter(Cart.id == order.cart_id).first()
     
     if not cart:
+        logger.error(f"Cart not found: Cart ID {order.cart_id}")
         raise HTTPException(status_code=404, detail="Cart not found")
     
     if cart.user_id != order.user_id:
+        logger.error(f"Cart does not belong to this user: User ID {order.user_id}, Cart ID {order.cart_id}")
         raise HTTPException(status_code=403, detail="Cart does not belong to this user")
 
     cart_items = db.query(CartItem).filter(CartItem.cart_id == order.cart_id, CartItem.is_active == True, CartItem.is_deleted == False).all()
 
     if not cart_items:
+        logger.error(f"CartItem not found for Cart ID {order.cart_id}")
         raise HTTPException(status_code=404, detail="CartItem not found")
 
     total_amount = sum(item.total_price for item in cart_items)
 
-
-    
     db_order.customer_name = order.customer_name
     db_order.total_amount = total_amount
     db_order.delivery_address = order.delivery_address
@@ -162,33 +178,35 @@ def update_order_by_put(order_id : str,order : OrderAll):
     db_order.product_id = order.product_id
     db_order.cart_id = order.cart_id
 
-  
-    
     db.commit()
+    logger.info(f"Order updated: Order ID {order_id}")
     return db_order
 
-#----------------------------update order by patch----------------------------
+#----------------------------update_order_by_patch----------------------------
 
 @Orders.patch("/update_order_by_patch", response_model=Orderpatch)
 def update_order_by_patch(order_id: str, order: Orderpatch):
-
     db_order = db.query(Order).filter(Order.id == order_id, Order.is_active == True, Order.is_deleted == False).first()
 
     if db_order is None:
+        logger.error(f"Order not found: Order ID {order_id}")
         raise HTTPException(status_code=404, detail="Order not found")
 
     product = db.query(Product).filter(Product.id == db_order.product_id).first()
 
     if not product:
+        logger.error(f"Product not found: Product ID {db_order.product_id}")
         raise HTTPException(status_code=404, detail="Product not found")
  
     if order.cart_id:
         cart = db.query(Cart).filter(Cart.id == order.cart_id).first()
 
         if not cart:
+            logger.error(f"Cart not found: Cart ID {order.cart_id}")
             raise HTTPException(status_code=404, detail="Cart not found")
 
         if cart.user_id != db_order.user_id:
+            logger.error(f"Cart does not belong to this user: User ID {db_order.user_id}, Cart ID {order.cart_id}")
             raise HTTPException(status_code=403, detail="Cart does not belong to this user")
         
     for key, value in order.dict(exclude_unset=True).items():
@@ -205,102 +223,109 @@ def update_order_by_patch(order_id: str, order: Orderpatch):
         else:
             db_order.total_amount = 0.0  
     db.commit()
-    
+    logger.info(f"Order partially updated: Order ID {order_id}")
     return db_order
 
-#--------------------------delete order by id---------------------------
+#--------------------------delete_order_by_id---------------------------
 
 @Orders.delete("/delete_order_by_id")
-def delete_order_by_id(order_id : str):
-    db_order = db.query(Order).filter(Order.id == order_id,Order.is_active == True,Order.is_deleted == False).first()
+def delete_order_by_id(order_id: str):
+    db_order = db.query(Order).filter(Order.id == order_id, Order.is_active == True, Order.is_deleted == False).first()
     
     if db_order is None:
-        raise  HTTPException(status_code=404,detail="order not found")
+        logger.error(f"Order not found: Order ID {order_id}")
+        raise HTTPException(status_code=404, detail="Order not found")
     
-    db_order.is_active=False
-    db_order.is_deleted =True
+    db_order.is_active = False
+    db_order.is_deleted = True
     
     db.commit()
+    logger.info(f"Order deleted: Order ID {order_id}")
     
-    return {"message": "order deleted successfully"}
+    return {"message": "Order deleted successfully"}
 
-#-------------------------search order by product id-------------------------
+#-------------------------search_order_by_product_id-------------------------
 
 @Orders.get("/search_order_by_product_id")
-def search_order_by_product_id(product_id : str):
+def search_order_by_product_id(product_id: str):
+    db_order = db.query(Order).filter(Order.product_id == product_id, Order.is_active == True, Order.is_deleted == False).all()
     
-    db_order = db.query(Order).filter(Order.product_id == product_id,Order.is_active == True,Order.is_deleted == False).all()
+    if not db_order:
+        logger.error(f"No orders found for Product ID {product_id}")
+        raise HTTPException(status_code=404, detail="Order not found")
     
-    if db_order is None:
-        raise  HTTPException(status_code=404,detail="order not found")
-    
+    logger.info(f"Orders retrieved by Product ID {product_id}")
     return db_order
 
-#---------------------------search order by user id----------------------
+#---------------------------search_order_by_user_id----------------------
 
 @Orders.get("/search_order_by_user_id")
-def search_order_by_user_id(user_id : str):
+def search_order_by_user_id(user_id: str):
+    db_order = db.query(Order).filter(Order.user_id == user_id, Order.is_active == True, Order.is_deleted == False).all()
     
-    db_order = db.query(Order).filter(Order.user_id == user_id,Order.is_active == True,Order.is_deleted == False).all()
+    if not db_order:
+        logger.error(f"No orders found for User ID {user_id}")
+        raise HTTPException(status_code=404, detail="Order not found")
     
-    if db_order is None:
-        raise  HTTPException(status_code=404,detail="order not found")
-    
+    logger.info(f"Orders retrieved by User ID {user_id}")
     return db_order
 
 #----------------------------cancel_order---------------------------------
 
-@Orders.put("/cancel_order",response_model=OrderAll)
-def cancel_order(order_id : str):
-    
-    db_order = db.query(Order).filter(Order.id == order_id,Order.is_active == True,Order.is_deleted == False).first()
+@Orders.put("/cancel_order", response_model=OrderAll)
+def cancel_order(order_id: str):
+    db_order = db.query(Order).filter(Order.id == order_id, Order.is_active == True, Order.is_deleted == False).first()
 
     if db_order is None:
-        raise  HTTPException(status_code=404,detail="order not found")
+        logger.error(f"Order not found: Order ID {order_id}")
+        raise HTTPException(status_code=404, detail="Order not found")
     
     db_order.status = "cancelled"
     db_order.modified_at = datetime.now()
     
     db.commit()
+    logger.info(f"Order cancelled: Order ID {order_id}")
     return db_order
 
-#----------------------------order get by datetime------------------------
+#----------------------------orders_by_date------------------------
 
 @Orders.get("/orders_by_startdate_enddate", response_model=list[OrderAll])
-def get_orders_by_date(start_date: datetime, end_date: datetime ):
-
-    db_order = db.query(Order).filter(Order.create_at >= start_date, Order.create_at <= end_date,Order.is_active == True,Order.is_deleted == False).all()
+def get_orders_by_date(start_date: datetime, end_date: datetime):
+    db_order = db.query(Order).filter(Order.create_at >= start_date, Order.create_at <= end_date, Order.is_active == True, Order.is_deleted == False).all()
     
     if not db_order:
+        logger.error(f"No orders found between {start_date} and {end_date}")
         raise HTTPException(status_code=404, detail="No orders found in the specified date range")
     
+    logger.info(f"Orders retrieved between {start_date} and {end_date}")
     return db_order
 
-#--------------------------------order by date-------------------------------
+#---------------------------orders_by_date-------------------------------
 
 @Orders.get("/orders_by_date", response_model=list[OrderAll])
-def get_orders_by_date(start_date: datetime ):
-
-    db_order = db.query(Order).filter(Order.create_at >= start_date,Order.is_active == True,Order.is_deleted == False).all()
+def get_orders_by_date(start_date: datetime):
+    db_order = db.query(Order).filter(Order.create_at >= start_date, Order.is_active == True, Order.is_deleted == False).all()
     
     if not db_order:
+        logger.error(f"No orders found after {start_date}")
         raise HTTPException(status_code=404, detail="No orders found in the specified date range")
     
+    logger.info(f"Orders retrieved from {start_date}")
     return db_order
 
-
 #-----------------------orders_by_delivery_boy--------------------- 
-
 
 @Orders.get("/orders_by_delivery_boy", response_model=list[OrderAll])
 def get_orders_by_delivery_boy(delivery_boy_id: str):
     deliveries = db.query(Delivery).filter(Delivery.delivery_boy_id == delivery_boy_id, Delivery.is_active == True, Delivery.is_deleted == False).all()
     
     if not deliveries:
+        logger.error(f"No deliveries found for Delivery Boy ID {delivery_boy_id}")
         raise HTTPException(status_code=404, detail="No deliveries found for this delivery boy")
     
     order_ids = [delivery.order_id for delivery in deliveries]
 
     orders = db.query(Order).filter(Order.id.in_(order_ids), Order.is_active == True, Order.is_deleted == False).all()
     
+    logger.info(f"Orders retrieved for Delivery Boy ID {delivery_boy_id}")
     return orders
