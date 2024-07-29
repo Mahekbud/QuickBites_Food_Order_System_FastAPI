@@ -10,6 +10,7 @@ from src.models.otp import Otps
 from datetime import timedelta,datetime
 from src.utils.otp import send_otp_via_email
 from src.utils.token import get_token,decode_token_user_id
+from logs.log_config import logger
 
 
 
@@ -25,13 +26,15 @@ db = Sessionlocal()
 
 @Users.post("/create_user",response_model=UserAll)
 def create_user(user:UserAll):
-    
+    logger.info("Attempting to create user")
     existing_user = db.query(User).filter(User.u_name == user.u_name).first()
     if existing_user:
+        logger.error("Username already exists")
         raise HTTPException(status_code=400, detail="Username already exists")
     
     existing_email = db.query(User).filter(User.email == user.email).first()
     if existing_email:
+        logger.error("Email already exists")
         raise HTTPException(status_code=400, detail="email already exists")
     
 
@@ -42,9 +45,15 @@ def create_user(user:UserAll):
         phone_no = user.phone_no,
         password = pwd_context.hash(user.password)
     )
+    logger.success("User is created.")
+    logger.info("User adding to database.......")
     
     db.add(new_user)
+    logger.success("User loaded successfully")
+    
     db.commit()
+    logger.success("User created successfully")
+    
     return new_user
 
 #----------------------------generet otp--------------------------------
